@@ -9,7 +9,7 @@ class DialogflowApp : AssistantApp<DialogflowRequest, DialogflowResponse> {
 
     // Constants
     val RESPONSE_CODE_OK = 200
-    val ACTIONS_API_AI_CONTEXT = "_actions_on_google_"
+    val ACTIONS_DIALOGFLOW_CONTEXT = "_actions_on_google_"
     val MAX_LIFESPAN = 100
     val INPUTS_MAX = 3
     val ORIGINAL_SUFFIX = ".original"
@@ -897,7 +897,7 @@ class DialogflowApp : AssistantApp<DialogflowRequest, DialogflowResponse> {
             handleError("No contexts included in request")
             return mutableListOf()
         }
-        return request.body.result.contexts.filter { it.name != ACTIONS_API_AI_CONTEXT }.filterNotNull().toMutableList()
+        return request.body.result.contexts.filter { it.name != ACTIONS_DIALOGFLOW_CONTEXT }.filterNotNull().toMutableList()
     }
 
     /**
@@ -1270,7 +1270,7 @@ class DialogflowApp : AssistantApp<DialogflowRequest, DialogflowResponse> {
         if (expectUserResponse) {
             response.contextOut.add(
                     Context(
-                            name = ACTIONS_API_AI_CONTEXT,
+                            name = ACTIONS_DIALOGFLOW_CONTEXT,
                             lifespan = MAX_LIFESPAN,
                             parameters = dialogState["data"] as MutableMap<String, Any>?))
         }
@@ -1314,16 +1314,25 @@ class DialogflowApp : AssistantApp<DialogflowRequest, DialogflowResponse> {
         } else {
             noInputsFinal = mutableListOf()
         }
-        val response = DialogflowResponse(
-                speech = textToSpeech)
-        response.data.google = GoogleData(
-                expectUserResponse = expectUserResponse,
-                isSsml = isSsml(textToSpeech),
-                noInputPrompts = noInputsFinal)
+        val hasDataForAnotherPlatform = response.body?.data != null
+        val response = if (hasDataForAnotherPlatform) {
+            DialogflowResponse(
+                    speech = textToSpeech,
+                    data = response.body?.data!!)
+        } else {
+            DialogflowResponse(
+                    speech = textToSpeech)
+        }
+        if (!hasDataForAnotherPlatform) {
+            response.data.google = GoogleData(
+                    expectUserResponse = expectUserResponse,
+                    isSsml = isSsml(textToSpeech),
+                    noInputPrompts = noInputsFinal)
+        }
         if (expectUserResponse) {
             response.contextOut.add(
                     Context(
-                            name = ACTIONS_API_AI_CONTEXT,
+                            name = ACTIONS_DIALOGFLOW_CONTEXT,
                             lifespan = MAX_LIFESPAN,
                             parameters = dialogState["data"] as MutableMap<String, Any>?))
         }
@@ -1333,12 +1342,74 @@ class DialogflowApp : AssistantApp<DialogflowRequest, DialogflowResponse> {
     }
 
     /**
+     * Uses a given intent spec to construct and send a non-TEXT intent response
+     * to Google.
+     *
+     * @param {String} intent Name of the intent to fulfill. One of
+     *     {@link AssistantApp#StandardIntents|StandardIntents}.
+     * @param {String} specType Type of the related intent spec. One of
+     *     {@link AssistantApp#InputValueDataTypes_|InputValueDataTypes_}.
+     * @param {NewSurfaceValueSpec} intentSpec Intent Spec object.
+     * @param {String} promptPlaceholder Some placeholder text for the response
+     *     prompt. Default is "PLACEHOLDER_FOR_INTENT".
+     * @param {MutableMap<String, Any?>?} dialogState JSON object the app uses to hold dialog state that
+     *     will be circulated back by Assistant.
+     * @return {ResponseWrapper<DialogflowResponse>?} HTTP response.
+     * @private
+     * @dialogflow
+     */
+    override fun fulfillSystemIntent(intent: String, specType: String, intentSpec: NewSurfaceValueSpec, promptPlaceholder: String?, dialogState: MutableMap<String, Any?>?): ResponseWrapper<DialogflowResponse>? {
+        debug("fulfillSystemIntent_: intent=$intent, specType=$specType, intentSpec=$intentSpec, " +
+                "promptPlaceholder=$promptPlaceholder dialogState=$dialogState")
+        val response = this.buildResponse(promptPlaceholder ?:
+                "PLACEHOLDER_FOR_INTENT", true)
+        response?.body {
+            data {
+                google {
+                    systemIntent {
+                        this.intent = intent
+                        data {
+                            `@type` = specType
+                            context = intentSpec.context
+                            notificationTitle = intentSpec.notificationTitle
+                            capabilities = intentSpec.capabilities
+                        }
+                    }
+                }
+            }
+        }
+        return doResponse(response, RESPONSE_CODE_OK)
+    }
+
+    override fun fulfillRegisterUpdateIntent(intent: String, specType: String, intentSpec: RegisterUpdateValueSpec, promptPlaceholder: String?, dialogState: MutableMap<String, Any?>?): ResponseWrapper<DialogflowResponse>? {
+        debug("fulfillSystemIntent_: intent=$intent, specType=$specType, intentSpec=$intentSpec, " +
+                "promptPlaceholder=$promptPlaceholder dialogState=$dialogState")
+        val response = this.buildResponse(promptPlaceholder ?:
+                "PLACEHOLDER_FOR_INTENT", true)
+        response?.body {
+            data {
+                google {
+                    systemIntent {
+                        this.intent = intent
+                        data {
+                            `@type` = specType
+                            triggerContext = intentSpec.triggerContext
+                            arguments = intentSpec.arguments
+                        }
+                    }
+                }
+            }
+        }
+        return doResponse(response, RESPONSE_CODE_OK)
+    }
+
+    /**
      * Extract the session data from the incoming JSON request.
      *
      */
     override fun extractData() {
         debug("extractData")
-        data = request.body.result.contexts.find { it.name == ACTIONS_API_AI_CONTEXT }?.parameters ?: mutableMapOf()
+        data = request.body.result.contexts.find { it.name == ACTIONS_DIALOGFLOW_CONTEXT }?.parameters ?: mutableMapOf()
     }
 
     /**

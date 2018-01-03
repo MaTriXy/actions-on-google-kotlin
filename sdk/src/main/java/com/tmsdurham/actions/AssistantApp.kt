@@ -11,7 +11,7 @@ internal val logger = Logger.getAnonymousLogger()
 // Constants
 val ERROR_MESSAGE = "Sorry, I am unable to process your request."
 val API_ERROR_MESSAGE_PREFIX = "Action Error: "
-val CONVERSATION_API_VERSION_HEADER = "google-assistant-api-version"
+val CONVERSATION_API_VERSION_HEADER = "Google-Assistant-API-Version"
 val ACTIONS_CONVERSATION_API_VERSION_HEADER = "Google-Actions-API-Version"
 val ACTIONS_CONVERSATION_API_VERSION_TWO = 2
 val RESPONSE_CODE_OK = 200
@@ -41,6 +41,16 @@ class StandardIntents(val isNotVersionOne: Boolean) {
     val DATETIME = "actions.intent.DATETIME"
     /** App fires SIGN_IN intent when requesting sign-in from user. */
     val SIGN_IN = "actions.intent.SIGN_IN"
+    /** App fires NO_INPUT intent when user doesn't provide input. */
+    val NO_INPUT = "actions.intent.NO_INPUT"
+    /** App fires CANCEL intent when user exits app mid-dialog. */
+    val CANCEL = "actions.intent.CANCEL"
+    /** App fires NEW_SURFACE intent when requesting handoff to a new surface from user. */
+    val NEW_SURFACE = "actions.intent.NEW_SURFACE"
+    /** App fires REGISTER_UPDATE intent when requesting the user to register for proactive updates. */
+    val REGISTER_UPDATE = "actions.intent.REGISTER_UPDATE"
+    /** App receives CONFIGURE_UPDATES intent to indicate a custom REGISTER_UPDATE intent should be sent. */
+    val CONFIGURE_UPDATES = "actions.intent.CONFIGURE_UPDATES"
 }
 
 class SupportedIntent {
@@ -81,6 +91,14 @@ class BuiltInArgNames(isNotVersionOne: Boolean) {
     val DATETIME = "DATETIME"
     /** Sign in status argument. */
     val SIGN_IN = "SIGN_IN"
+    /** Reprompt count for consecutive NO_INPUT intents. */
+    val REPROMPT_COUNT = "REPROMPT_COUNT"
+    /** Flag representing finality of NO_INPUT intent. */
+    val IS_FINAL_REPROMPT = "IS_FINAL_REPROMPT"
+    /** New surface value argument. */
+    val NEW_SURFACE = "NEW_SURFACE"
+    /** Update registration value argument. */
+    val REGISTER_UPDATE = "REGISTER_UPDATE"
 }
 
 const val ANY_TYPE_PROPERTY = "@type"
@@ -105,6 +123,10 @@ class InputValueDataTypes {
     val DATETIME = "type.googleapis.com/google.actions.v2.DateTimeValueSpec"
     /** Sign in Value Spec. */
     val SIGN_IN = "type.googleapis.com/google.actions.v2.SignInValueSpec"
+    /** New Surface Value Spec. */
+    val NEW_SURFACE = "type.googleapis.com/google.actions.v2.NewSurfaceValueSpec"
+    /** Register Update Value Spec. */
+    val REGISTER_UPDATE = "type.googleapis.com/google.actions.v2.RegisterUpdateValueSpec"
 }
 
 /**
@@ -191,6 +213,10 @@ class SupportedPermissions {
      * {@link https://developers.google.com/actions/reference/conversation#Location|Location object}.
      */
     val DEVICE_COARSE_LOCATION = "DEVICE_COARSE_LOCATION"
+    /**
+     * Confirmation to receive proactive content at any time from the app.
+     */
+    val UPDATE = "UPDATE"
 }
 
 class SignInStatus {
@@ -202,6 +228,15 @@ class SignInStatus {
     val CANCELLED = "CANCELLED"
     // System or network error.
     val ERROR = "ERROR"
+}
+
+/**
+ * Possible update trigger time context frequencies.
+ * @readonly
+ * @type {object}
+ */
+class TimeContextFrequency {
+    val DAILY = "DAILY"
 }
 
 
@@ -216,6 +251,7 @@ open abstract class AssistantApp<T, S>(val request: RequestWrapper<T>, val respo
     var INPUT_TYPES: InputTypes
     val SUPPORTED_PERMISSIONS = SupportedPermissions()
     val SIGN_IN_STATUS = SignInStatus()
+    val TIME_CONTEXT_FREQUENCY = TimeContextFrequency()
 
     var responded = false
     var apiVersion_: String = "2"
@@ -242,7 +278,7 @@ open abstract class AssistantApp<T, S>(val request: RequestWrapper<T>, val respo
             if (request.headers[ACTIONS_CONVERSATION_API_VERSION_HEADER] != null) {
                 actionsApiVersion = request.headers[ACTIONS_CONVERSATION_API_VERSION_HEADER] ?: "2"
                 debug("Actions API version from header: " + this.actionsApiVersion)
-            } else if (request.headers[CONVERSATION_API_VERSION_HEADER] != null){
+            } else if (request.headers[CONVERSATION_API_VERSION_HEADER] != null) {
                 actionsApiVersion = if (request.headers[CONVERSATION_API_VERSION_HEADER] == "v1") "1" else "2"
             }
             if (request.body is DialogflowRequest) {
@@ -356,6 +392,73 @@ open abstract class AssistantApp<T, S>(val request: RequestWrapper<T>, val respo
         return fulfillPermissionsRequest(GoogleData.PermissionsRequest(
                 optContext = context,
                 permissions = permissions.toMutableList()), dialogState)
+    }
+
+
+    /**
+     * Prompts the user for permission to send proactive updates at any time.
+     *
+     * @example
+     * val app = new DialogflowApp({request, response})
+     * val REQUEST_PERMISSION_ACTION = "request.permission"
+     * val PERMISSION_REQUESTED = "permission.requested"
+     * val SHOW_IMAGE = "show.image"
+     *
+     * fun requestPermission (app) {
+     *   app.askForUpdatePermission("show.image", [
+     *     {
+     *       name: "image_to_show",
+     *       textValue: "image_type_1"
+     *     }
+     *   ])
+     * }
+     *
+     * fun checkPermission (app) {
+     *   if (app.isPermissionGranted()) {
+     *     app.tell("Great, I"ll send an update whenever I notice a change")
+     *   } else {
+     *     // Response shows that user did not grant permission
+     *     app.tell("Alright, just let me know whenever you need the weather!")
+     *   }
+     * }
+     *
+     * fun showImage (app) {
+     *   showPicture(app.getArgument("image_to_show"))
+     * }
+     *
+     * val actionMap = new Map()
+     * actionMap.set(REQUEST_PERMISSION_ACTION, requestPermission)
+     * actionMap.set(PERMISSION_REQUESTED, checkPermission)
+     * actionMap.set(SHOW_IMAGE, showImage)
+     * app.handleRequest(actionMap)
+     *
+     * @param {String} intent If using Dialogflow, the action name of the intent
+     *     to be triggered when the update is received. If using Actions SDK, the
+     *     intent name to be triggered when the update is received.
+     * @param {Array<IntentArgument>} intentArguments The necessary arguments
+     *     to fulfill the intent triggered on update. These can be retrieved using
+     *     {@link AssistantApp#getArgument}.
+     * @param {MutableMap<String, Any?>} dialogState JSON object the app uses to hold dialog state that
+     *     will be circulated back by Assistant. Used in {@link ActionsSdkApp}.
+     * @return {ResponseWrapper<S>?} A response is sent to Assistant to ask for the user"s permission for any
+     *     invalid input, we return null.
+     * @actionssdk
+     * @dialogflow
+     */
+    fun askForUpdatePermission(intent: String, intentArguments: MutableList<Arguments>? = null, dialogState: MutableMap<String, Any?>? = null): ResponseWrapper<S>? {
+        debug("askForUpdatePermission: intent=$intent, intentArguments=$intentArguments, dialogState=$dialogState")
+        if (intent.isBlank()) {
+            handleError("Name of intent to trigger on update must be specified")
+            return null
+        }
+        val updatePermissionValueSpec = GoogleData.PermissionsRequest(intent = intent)
+        if (intentArguments?.isNotEmpty() == true) {
+            updatePermissionValueSpec.arguments = intentArguments
+        }
+        updatePermissionValueSpec.permissions = mutableListOf(this.SUPPORTED_PERMISSIONS.UPDATE)
+
+        return this.fulfillPermissionsRequest(
+                permissionsSpec = updatePermissionValueSpec, dialogState = dialogState)
     }
 
     /**
@@ -500,12 +603,135 @@ open abstract class AssistantApp<T, S>(val request: RequestWrapper<T>, val respo
         return fulfillSignInRequest(dialogState)
     }
 
+    /**
+     * Requests the user to switch to another surface during the conversation.
+     *
+     * @example
+     * val app = DialogflowApp(request, response)
+     * val WELCOME_INTENT = 'input.welcome'
+     * val SHOW_IMAGE = 'show.image'
+     *
+     * fun welcomeIntent (app) {
+     *   if (app.hasSurfaceCapability(app.SurfaceCapabilities.SCREEN_OUTPUT)) {
+     *     showPicture(app)
+     *   } else if (app.hasAvailableSurfaceCapabilities(app.SurfaceCapabilities.SCREEN_OUTPUT)) {
+     *     app.askForNewSurface("To show you an image",
+     *       "Check out this image",
+     *       mutableListOf(app.SurfaceCapabilities.SCREEN_OUTPUT)
+     *     )
+     *   } else {
+     *     app.tell("This part of the app only works on screen devices. Sorry about that")
+     *   }
+     * }
+     *
+     * fun showImage (app) {
+     *   if (!app.isNewSurface()) {
+     *     app.tell("Ok, I understand. You don't want to see pictures. Bye")
+     *   } else {
+     *     showPicture(app, pictureType)
+     *   }
+     * }
+     *
+     * val actionMap = Map()
+     * actionMap.set(WELCOME_INTENT, welcomeIntent)
+     * actionMap.set(SHOW_IMAGE, showImage)
+     * app.handleRequest(actionMap)
+     *
+     * @param {String} context Context why surface is requested it's the TTS
+     *     prompt prefix (action phrase) we ask the user.
+     * @param {String} notificationTitle Title of the notification appearing on
+     *     surface device.
+     * @param {MutableList<String>} capabilities The list of capabilities required in
+     *     the surface.
+     * @param {MutableMap<String, Any?>?} dialogState JSON object the app uses to hold dialog state that
+     *     will be circulated back by Assistant. Used in {@link ActionsSdkApp}.
+     * @return {ResponseWrapper<DialogflowResponse>?} HTTP response.
+     * @dialogflow
+     * @actionssdk
+     */
+    fun askForNewSurface(context: String, notificationTitle: String, capabilities: MutableList<String>, dialogState: MutableMap<String, Any?>? = null): ResponseWrapper<DialogflowResponse>? {
+        debug("askForNewSurface: context=$context, notificationTitle=$notificationTitle, capabilities=$capabilities, dialogState=$dialogState")
+        val newSurfaceValueSpec = NewSurfaceValueSpec(context, notificationTitle, capabilities)
+        return fulfillSystemIntent(this.STANDARD_INTENTS.NEW_SURFACE,
+                this.INPUT_VALUE_DATA_TYPES.NEW_SURFACE, newSurfaceValueSpec,
+                "PLACEHOLDER_FOR_NEW_SURFACE", dialogState)
+    }
+
+
+    /**
+     * Requests the user to register for daily updates.
+     *
+     * @example
+     * val app = DialogflowApp(request, response)
+     * val WELCOME_INTENT = "input.welcome"
+     * val SHOW_IMAGE = "show.image"
+     *
+     * fun welcomeIntent (app) {
+     *   app.askToRegisterDailyUpdate("show.image", mutableListOf(Arguments(
+     *       name: "image_to_show",
+     *       textValue: "image_type_1"))
+     *
+     *
+     * fun showImage (app) {
+     *   showPicture(app.getArgument("image_to_show"))
+     * }
+     *
+     * val actionMap = new Map()
+     * actionMap.set(WELCOME_INTENT, welcomeIntent)
+     * actionMap.set(SHOW_IMAGE, showImage)
+     * app.handleRequest(actionMap)
+     *
+     * @param {String} intent If using Dialogflow, the action name of the intent
+     *     to be triggered when the update is received. If using Actions SDK, the
+     *     intent name to be triggered when the update is received.
+     * @param {Array<IntentArgument>?} intentArguments The necessary arguments
+     *     to fulfill the intent triggered on update. These can be retrieved using
+     *     {@link AssistantApp#getArgument}.
+     * @param {MutableMapOf<String, Any?>?} dialogState JSON object the app uses to hold dialog state that
+     *     will be circulated back by Assistant. Used in {@link ActionsSdkApp}.
+     * @return {ResponseWrapper<S>?} HTTP response.
+     * @dialogflow
+     * @actionssdk
+     */
+    fun askToRegisterDailyUpdate(intent: String, intentArguments: MutableList<Arguments>? = null, dialogState: MutableMap<String, Any?>? = null): ResponseWrapper<DialogflowResponse>? {
+        debug("askToRegisterDailyUpdate: intent=$intent, intentArguments=$intentArguments, dialogState=$dialogState")
+        if (intent.isNullOrBlank()) {
+            handleError("Name of intent to trigger on update must be specified")
+            return null
+        }
+        val registerUpdateValueSpec = RegisterUpdateValueSpec(
+                intent = intent,
+                triggerContext = TriggerContext(timeContext = TimeContext(frequency = TIME_CONTEXT_FREQUENCY.DAILY))
+        )
+
+        if (intentArguments?.isNotEmpty() == true) {
+            registerUpdateValueSpec.arguments = intentArguments
+        }
+        return this.fulfillRegisterUpdateIntent(this.STANDARD_INTENTS.REGISTER_UPDATE,
+                INPUT_VALUE_DATA_TYPES.REGISTER_UPDATE, registerUpdateValueSpec,
+                "PLACEHOLDER_FOR_REGISTER_UPDATE", dialogState)
+    }
+
 
     internal abstract fun fulfillSignInRequest(dialogState: MutableMap<String, Any?>?): ResponseWrapper<S>?
     internal abstract fun fulfillDateTimeRequest(confirmationValueSpec: ConfirmationValueSpec, dialogState: MutableMap<String, Any?>?): ResponseWrapper<S>?
     internal abstract fun fulfillConfirmationRequest(confirmationValueSpec: ConfirmationValueSpec, dialogState: MutableMap<String, Any?>?): ResponseWrapper<S>?
+    internal abstract fun fulfillSystemIntent(intent: String, specType: String, intentSpec: NewSurfaceValueSpec, promptPlaceholder: String? = null, dialogState: MutableMap<String, Any?>? = null): ResponseWrapper<DialogflowResponse>?
+    internal abstract fun fulfillRegisterUpdateIntent(intent: String, specType: String, intentSpec: RegisterUpdateValueSpec, promptPlaceholder: String? = null, dialogState: MutableMap<String, Any?>? = null): ResponseWrapper<DialogflowResponse>?
 
     data class ConfirmationValueSpec(var dialogSpec: DialogSpec? = null)
+
+    data class NewSurfaceValueSpec(var context: String? = null,
+                                   var notificationTitle: String? = null,
+                                   var capabilities: MutableList<String>? = null)
+
+    data class RegisterUpdateValueSpec(var intent: String? = null,
+                                       var arguments: MutableList<Arguments>? = null,
+                                       var triggerContext: TriggerContext? = null)
+
+    data class TriggerContext(var timeContext: TimeContext? = null)
+
+    data class TimeContext(var frequency: String? = null)
 
     data class DialogSpec(var requestConfirmationText: String? = null,
                           var requestDatetimeText: String? = null,
@@ -971,6 +1197,57 @@ open abstract class AssistantApp<T, S>(val request: RequestWrapper<T>, val respo
     }
 
     /**
+     * Returns the set of other available surfaces for the user.
+     *
+     * @return {Array<Surface>} Empty if no available surfaces.
+     * @actionssdk
+     * @dialogflow
+     */
+    fun getAvailableSurfaces(): MutableList<Surface> {
+        debug("getAvailableSurfaces")
+        return requestExtractor.requestData()?.availableSurfaces ?: mutableListOf()
+    }
+
+    /**
+     * Returns true if user has an available surface which includes all given
+     * capabilities. Available surfaces capabilities may exist on surfaces other
+     * than that used for an ongoing conversation.
+     *
+     * @param {string|Array<string>} capabilities Must be one of
+     *     {@link SurfaceCapabilities}.
+     * @return {boolean} True if user has a capability available on some surface.
+     *
+     * @dialogflow
+     * @actionssdk
+     */
+    fun hasAvailableSurfaceCapabilities(vararg capabilities: String): Boolean {
+        debug("hasAvailableSurfaceCapabilities: capabilities=$capabilities")
+        val availableSurfaces = requestExtractor.requestData()
+        availableSurfaces?.availableSurfaces?.forEach {
+            val availableCapabilities = it.capabilities?.map { it.name }
+            val unavailableCapabilities = capabilities.filter { !(availableCapabilities?.contains(it) ?: false) }
+            if (unavailableCapabilities.isEmpty()) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /**
+     * Returns the result of the AskForNewSurface helper.
+     *
+     * @return {boolean} True if user has triggered conversation on a new device
+     *     following the NEW_SURFACE intent.
+     * @actionssdk
+     * @dialogflow
+     */
+    fun isNewSurface(): Boolean {
+        debug("isNewSurface")
+        val argument = requestExtractor.findArgument(this.BUILT_IN_ARG_NAMES.NEW_SURFACE)
+        return argument?.extension?.status == "OK"
+    }
+
+    /**
      * Returns true if user device has a given surface capability.
      *
      * @param {string} capability Must be one of {@link SurfaceCapabilities}.
@@ -1019,6 +1296,7 @@ open abstract class AssistantApp<T, S>(val request: RequestWrapper<T>, val respo
         }
         // Don"t call other methods; just do directly
         //TODO revist if response should be sent on all errors - issue with context not set when from other platforms
+        this.response.status(RESPONSE_CODE_BAD_REQUEST)
 //        this.response.status(RESPONSE_CODE_BAD_REQUEST).send(API_ERROR_MESSAGE_PREFIX + text)
 //        this.responded = true
     }
@@ -1069,6 +1347,9 @@ open abstract class AssistantApp<T, S>(val request: RequestWrapper<T>, val respo
     fun getSurfaceCapabilities() = requestExtractor.getSurfaceCapabilities()
     fun getInputType() = requestExtractor.getInputType()
     fun isPermissionGranted() = requestExtractor.isPermissionGranted()
+    fun getRepromptCount() = requestExtractor.getRepromptCount()
+    fun isFinalReprompt() = requestExtractor.isFinalReprompt()
+    fun isUpdateRegistered() = requestExtractor.isUpdateRegistered()
 }
 
 /**

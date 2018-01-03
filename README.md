@@ -7,6 +7,7 @@ This is a port of the [official Node.js SDK](https://github.com/actions-on-googl
 __Quick Facts__
 
  * Port of the actions-on-google SDK to Kotlin.  Kotlin and Java developers can quickly start building Actions for Google Assistant.
+  * Used in production for the Ticketmaster Assistant Action ("Ok Google, ask Ticketmaster to find rock concerts near me.")
  * Closely matches Node.js Client Library API
  * Closely matches implementation of Node.js sdk so code can be maintained easily as features are added
  * All tests ported from nodejs SDK (using [Spek framework](http://spekframework.org/)) & 100% passing
@@ -16,7 +17,7 @@ __Quick Facts__
 
 ## Setup Instructions
 
-This library is available on jCenter and Maven Central.  If your using gradle simply add the dependency as follows:
+This library is available on jCenter.  If your using gradle simply add the dependency as follows:
 
 __Gradle:__
 
@@ -26,14 +27,14 @@ __Gradle:__
     }
     
     dependencies {
-        compile 'com.tmsdurham.actions:actions-on-google:1.2.15'
+        compile 'com.tmsdurham.actions:actions-on-google:1.6.0'
     }
 __Maven:__
 
     <dependency>
   		<groupId>com.tmsdurham.actions</groupId>
   		<artifactId>actions-on-google</artifactId>
-  		<version>1.2.7</version>
+  		<version>1.6.0</version>
   		<type>pom</type>
     </dependency>
 
@@ -41,14 +42,14 @@ The above artifact should fit the needs of most developers, however, if you are 
 
 __Gradle:__
 
-   	compile 'com.tmsdurham.actions:actions-on-google-core:1.2.15'. //only if not using Servlets
+   	compile 'com.tmsdurham.actions:actions-on-google-core:1.6.0'. //only if not using Servlets
 
 __Maven:__
 
     <dependency>
   		<groupId>com.tmsdurham.actions</groupId>
   		<artifactId>actions-on-google-core</artifactId>		//only if not using Servlets
-  		<version>1.2.15</version>
+  		<version>1.6.0</version>
   		<type>pom</type>
     </dependency>
 

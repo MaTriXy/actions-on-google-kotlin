@@ -22,7 +22,7 @@ val gson = GsonBuilder()
 
 val headerV1 = mapOf(
         "Content-Type" to "application/json",
-        "google-assistant-api-version" to "v1"
+        "Google-Assistant-API-version" to "v1"
 )
 
 val headerV2 = mapOf(
@@ -40,7 +40,7 @@ const val fakeConversationId = "0123456789"
 object ActionsTest : Spek({
 
     debugFunction = defaultLogFunction
-    
+
     fun requestFromJson(body: String) = gson.fromJson<DialogflowRequest>(body, DialogflowRequest::class.java)
 
     fun responseFromJson(body: String) = gson.fromJson<DialogflowResponse>(body, DialogflowResponse::class.java)
@@ -146,7 +146,7 @@ object ActionsTest : Spek({
         )
         val headerV1 = mapOf(
                 "Content-Type" to "application/json",
-                "google-assistant-api-version" to "v1"
+                "Google-Assistant-API-Version" to "v1"
         )
 
         beforeEachTest {
@@ -1354,6 +1354,279 @@ object ActionsTest : Spek({
     }
 
     /**
+     * Describes the behavior for DialogflowApp getAvailableSurfaces method.
+     */
+    describe("#getAvailableSurfaces", {
+        var body: DialogflowRequest = DialogflowRequest()
+        var mockRequest: RequestWrapper<DialogflowRequest> = RequestWrapper(body = body)
+        var mockResponse: ResponseWrapper<DialogflowResponse> = ResponseWrapper()
+        var app: DialogflowApp = DialogflowApp(mockRequest, mockResponse, { false })
+        var availableSurfaces: MutableList<Surface>? = null
+
+        beforeEachTest {
+            body = createLiveSessionApiAppBody()
+            mockRequest = RequestWrapper(headerV2, body)
+            mockResponse = ResponseWrapper()
+            app = DialogflowApp(
+                    request = mockRequest,
+                    response = mockResponse
+            )
+            availableSurfaces = gson.fromJson("""[
+            {
+                "capabilities": [
+                {
+                    "name": "cap_one"
+                },
+                {
+                    "name": "cap_two"
+                }
+                ]
+            },
+            {
+                "capabilities": [
+                {
+                    "name": "cap_three"
+                },
+                {
+                    "name": "cap_four"
+                }
+                ]
+            }
+            ]""", arrayOf<Surface>().javaClass).toMutableList()
+            body.originalRequest?.data?.availableSurfaces = availableSurfaces
+        }
+
+        // Success case test, when the API returns a valid 200 response with the response object
+        it("Should return assistant available surfaces", {
+            body.originalRequest?.data?.availableSurfaces = availableSurfaces
+            val mockRequest = RequestWrapper(headerV1, body)
+            val app = DialogflowApp(
+                    mockRequest,
+                    mockResponse)
+
+            expect(app.getAvailableSurfaces()).to.equal(availableSurfaces)
+        })
+
+        // Failure case test
+        it("Should return empty assistant available surfaces", {
+            body.originalRequest?.data?.availableSurfaces = mutableListOf()
+            val mockRequest = RequestWrapper(headerV2, body)
+            val app = DialogflowApp(
+                    mockRequest,
+                    mockResponse
+            )
+            expect(app.getAvailableSurfaces()).to.equal(mutableListOf<Surface>())
+        })
+
+    })
+    /**
+     * Describes the behavior for DialogflowApp hasAvailableSurfaceCapabilities method.
+     */
+    describe("#hasAvailableSurfaceCapabilities", {
+        var body: DialogflowRequest = DialogflowRequest()
+        var mockRequest: RequestWrapper<DialogflowRequest> = RequestWrapper(body = body)
+        var mockResponse: ResponseWrapper<DialogflowResponse> = ResponseWrapper()
+        var app: DialogflowApp = DialogflowApp(mockRequest, mockResponse, { false })
+        var availableSurfaces: MutableList<Surface>? = null
+
+        beforeEachTest {
+            body = createLiveSessionApiAppBody()
+            mockRequest = RequestWrapper(headerV2, body)
+            mockResponse = ResponseWrapper()
+            app = DialogflowApp(
+                    request = mockRequest,
+                    response = mockResponse
+            )
+            availableSurfaces = gson.fromJson("""[
+            {
+                "capabilities": [
+                {
+                    "name": "cap_one"
+                },
+                {
+                    "name": "cap_two"
+                }
+                ]
+            },
+            {
+                "capabilities": [
+                {
+                    "name": "cap_three"
+                },
+                {
+                    "name": "cap_four"
+                }
+                ]
+            }
+            ]""", arrayOf<Surface>().javaClass).toMutableList()
+            body.originalRequest?.data?.availableSurfaces = availableSurfaces
+        }
+
+        // Success case test, when the API returns a valid 200 response with the response object
+        it("Should return true for set of valid capabilities", {
+            val mockRequest = RequestWrapper(headerV1, body)
+            val app = DialogflowApp(
+                    mockRequest,
+                    mockResponse
+            )
+
+            expect(app.hasAvailableSurfaceCapabilities("cap_one", "cap_two")).to.be.`true`
+        })
+
+        // Success case test, when the API returns a valid 200 response with the response object
+        it("Should return true for one valid capability", {
+            val mockRequest = RequestWrapper(headerV1, body)
+            val app = DialogflowApp(
+                    mockRequest,
+                    mockResponse
+            )
+
+            expect(app.hasAvailableSurfaceCapabilities("cap_one")).to.be.`true`
+        })
+
+        // Failure case test, when the API returns a valid 200 response with the response object
+        it("Should return false for set of invalid capabilities", {
+            val mockRequest = RequestWrapper(headerV1, body)
+            val app = DialogflowApp(
+                    mockRequest,
+                    mockResponse)
+
+            expect(app.hasAvailableSurfaceCapabilities("cap_one", "cap_three")).to.be.`false`
+        })
+
+        // Failure case test, when the API returns a valid 200 response with the response object
+        it("Should return false for one invalid capability", {
+            val mockRequest = RequestWrapper(headerV1, body)
+            val app = DialogflowApp(
+                    mockRequest,
+                    mockResponse)
+
+            expect(app.hasAvailableSurfaceCapabilities("cap_five")).to.be.`false`
+        })
+
+        // Failure case test
+        it("Should return false for empty assistant available surfaces", {
+            body.originalRequest?.data?.availableSurfaces = null
+            val mockRequest = RequestWrapper(headerV2, body)
+            val app = DialogflowApp(
+                    mockRequest,
+                    mockResponse
+            )
+            expect(app.hasAvailableSurfaceCapabilities()).to.be.`false`
+        })
+    })
+
+    /**
+     * Describes the behavior for DialogflowApp askForNewSurface method.
+     */
+    describe("#askForNewSurface", {
+        var body: DialogflowRequest = DialogflowRequest()
+        var mockRequest: RequestWrapper<DialogflowRequest> = RequestWrapper(body = body)
+        var mockResponse: ResponseWrapper<DialogflowResponse> = ResponseWrapper()
+        var app: DialogflowApp = DialogflowApp(mockRequest, mockResponse, { false })
+
+        beforeEachTest {
+            body = createLiveSessionApiAppBody()
+            mockRequest = RequestWrapper(headerV2, body)
+            app = DialogflowApp(
+                mockRequest,
+                mockResponse)
+        }
+
+        // Success case test, when the API returns a valid 200 response with the response object
+        it("Should return valid JSON sign in request", {
+            app.askForNewSurface("test context", "test title", mutableListOf("cap_one", "cap_two"))
+            val expectedResponse = responseFromJson("""{
+                "speech": "PLACEHOLDER_FOR_NEW_SURFACE",
+                "data": {
+                "google": {
+                "userStorage": "{\"data\":{}}",
+                "expectUserResponse": true,
+                "isSsml": false,
+                "noInputPrompts": [],
+                "systemIntent": {
+                "intent": "actions.intent.NEW_SURFACE",
+                "data": {
+                "context": "test context",
+                "notificationTitle": "test title",
+                "capabilities": ["cap_one", "cap_two"],
+                "@type": "type.googleapis.com/google.actions.v2.NewSurfaceValueSpec"
+            }
+            }
+            }
+            },
+                "contextOut": [
+                {
+                    "name": "_actions_on_google_",
+                    "lifespan": 100,
+                    "parameters": {}
+                }
+                ]
+            }""")
+
+            expect(mockResponse.body).to.equal(expectedResponse)
+        })
+    })
+
+    /**
+     * Describes the behavior for DialogflowApp isNewSurface method.
+     */
+    describe("#isNewSurface", {
+        var body: DialogflowRequest = DialogflowRequest()
+        var mockRequest: RequestWrapper<DialogflowRequest> = RequestWrapper(body = body)
+        var mockResponse: ResponseWrapper<DialogflowResponse> = ResponseWrapper()
+        var app: DialogflowApp = DialogflowApp(mockRequest, mockResponse, { false })
+
+        beforeEachTest {
+            body = createLiveSessionApiAppBody()
+            mockRequest = RequestWrapper(headerV2, body)
+            app = DialogflowApp(
+                mockRequest,
+                mockResponse)
+        }
+
+        // Success case test, when the API returns a valid 200 response with the response object
+        it("Should validate when new surface was accepted.", {
+            body?.originalRequest?.data?.inputs!![0]?.arguments = gson.fromJson("""[
+            {
+                "name": "NEW_SURFACE",
+                "extension": {
+                "status": "OK"
+            }
+            }
+            ]""", arrayOf<Arguments>()::class.java).toMutableList()
+
+            val mockRequest = RequestWrapper(headerV1, body)
+
+            val app = DialogflowApp(
+                mockRequest,
+                mockResponse)
+
+            expect(app.isNewSurface()).to.be.`true`
+        })
+
+        // Failure case test
+        it("Should validate when new surface was denied.", {
+            body?.originalRequest?.data?.inputs!![0]?.arguments = gson.fromJson("""[
+            {
+                "name": "NEW_SURFACE",
+                "extension": {
+                "status": "DENIED"
+            }
+            }
+            ]""", arrayOf<Arguments>()::class.java).toMutableList()
+
+            val mockRequest = RequestWrapper(headerV1, body)
+
+            val app = DialogflowApp(
+                mockRequest,
+                mockResponse)
+
+            expect(app.isNewSurface()).to.be.`false`
+        })
+    })
+
+    /**
      * Describes the behavior for DialogflowApp isPermissionGranted method.
      */
     describe("DialogflowApp#isPermissionGranted") {
@@ -2168,6 +2441,267 @@ object ActionsTest : Spek({
         }
     }
 
+
+
+    /**
+     * Describes the behavior for DialogflowApp askToRegisterDailyUpdate method.
+     */
+    describe("#askToRegisterDailyUpdate",  {
+        val body = createLiveSessionApiAppBody()
+        var mockRequest: RequestWrapper<DialogflowRequest> = RequestWrapper(body = body)
+        var mockResponse: ResponseWrapper<DialogflowResponse> = ResponseWrapper()
+        var app: DialogflowApp = DialogflowApp(mockRequest, mockResponse, { false })
+
+        beforeEachTest {
+            mockRequest = RequestWrapper(headerV2, body)
+            app = DialogflowApp(
+                 mockRequest,
+                 mockResponse)
+        }
+
+        // Success case test, when the API returns a valid 200 response with the response object
+        it("Should return valid JSON update registration request",  {
+            app.askToRegisterDailyUpdate("test_intent", gson.fromJson("""[
+                {
+                    name: "intent_name",
+                    textValue: "intent_value"
+                }
+            ]""", arrayOf<Arguments>().javaClass).toMutableList())
+            val expectedResponse = responseFromJson("""{
+                "speech": "PLACEHOLDER_FOR_REGISTER_UPDATE",
+                "data": {
+                "google": {
+                "userStorage": "{\"data\":{}}",
+                "expectUserResponse": true,
+                "isSsml": false,
+                "noInputPrompts": [],
+                "systemIntent": {
+                "intent": "actions.intent.REGISTER_UPDATE",
+                "data": {
+                "intent": "test_intent",
+                "arguments": [
+                {
+                    "name": "intent_name",
+                    "textValue": "intent_value"
+                }
+                ],
+                "triggerContext": {
+                "timeContext": {
+                "frequency": "DAILY"
+            }
+            },
+                "@type": "type.googleapis.com/google.actions.v2.RegisterUpdateValueSpec"
+            }
+            }
+            }
+            },
+                "contextOut": [
+                {
+                    "name": "_actions_on_google_",
+                    "lifespan": 100,
+                    "parameters": {}
+                }
+                ]
+            }""")
+
+            expect(mockResponse.body).to.equal(expectedResponse)
+        })
+
+        // Success case test, when the API returns a valid 200 response
+        // with the response object without arguments
+        it("Should return valid JSON update registration request",  {
+            app.askToRegisterDailyUpdate("test_intent")
+            val expectedResponse = responseFromJson("""{
+                "speech": "PLACEHOLDER_FOR_REGISTER_UPDATE",
+                "data": {
+                "google": {
+                "userStorage": "{"data":{}}",
+                "expectUserResponse": true,
+                "isSsml": false,
+                "noInputPrompts": [],
+                "systemIntent": {
+                "intent": "actions.intent.REGISTER_UPDATE",
+                "data": {
+                "intent": "test_intent",
+                "triggerContext": {
+                "timeContext": {
+                "frequency": "DAILY"
+            }
+            },
+                "@type": "type.googleapis.com/google.actions.v2.RegisterUpdateValueSpec"
+            }
+            }
+            }
+            },
+                "contextOut": [
+                {
+                    "name": "_actions_on_google_",
+                    "lifespan": 100,
+                    "parameters": {}
+                }
+                ]
+            }""")
+
+            expect(mockResponse.body).to.equal(expectedResponse)
+        })
+
+        // Failure case test, when an invalid intent name is given
+        it("Should return null",  {
+            expect(app.askToRegisterDailyUpdate("", gson.fromJson("""[
+                {
+                    name: "intent_name",
+                    textValue: "intent_value"
+                }
+            ]""", arrayOf<Arguments>().javaClass).toMutableList())).to.be.equal(null)
+            expect(mockResponse.statusCode).to.equal(400)
+        })
+    })
+
+    /**
+     * Describes the behavior for DialogflowApp isUpdateRegistered method.
+     */
+    describe("#isUpdateRegistered",  {
+        val body = createLiveSessionApiAppBody()
+        var mockRequest: RequestWrapper<DialogflowRequest> = RequestWrapper(body = body)
+        var mockResponse: ResponseWrapper<DialogflowResponse> = ResponseWrapper()
+        var app: DialogflowApp = DialogflowApp(mockRequest, mockResponse, { false })
+
+        fun initMockApp () {
+            mockRequest = RequestWrapper(headerV1, body)
+            app = DialogflowApp(mockRequest, mockResponse)
+        }
+
+        // Success case test, when the API returns a valid 200 response with the response object
+        it("Should validate user registration status.",  {
+            mockRequest.body?.originalRequest?.data?.inputs?.get(0)?.arguments = gson.fromJson("""[
+                {
+                    "name": "REGISTER_UPDATE",
+                    "extension": {
+                    "@type": "type.googleapis.com/google.actions.v2.RegisterUpdateValue",
+                    "status": "OK"
+                }
+                }]""", arrayOf<Arguments>().javaClass).toMutableList()
+
+            initMockApp()
+            expect(app.isUpdateRegistered()).to.equal(true)
+
+            // Test the false case
+            mockRequest.body.originalRequest?.data?.inputs?.get(0)?.arguments?.get(0)?.extension?.status = "CANCELLED"
+            initMockApp()
+            expect(app.isPermissionGranted()).to.equal(false)
+        })
+    })
+
+    /**
+     * Describes the behavior for DialogflowApp askForUpdatePermission method in v1.
+     */
+    describe("#askForUpdatePermission",  {
+        val body = createLiveSessionApiAppBody()
+        var mockRequest: RequestWrapper<DialogflowRequest> = RequestWrapper(body = body)
+        var mockResponse: ResponseWrapper<DialogflowResponse> = ResponseWrapper()
+        var app: DialogflowApp = DialogflowApp(mockRequest, mockResponse, { false })
+
+        beforeEachTest {
+            mockRequest = RequestWrapper(headerV2, body)
+            app = DialogflowApp(mockRequest, mockResponse)
+        }
+
+        // Success case test, when the API returns a valid 200 response with the response object
+        it("Should return the valid JSON in the response object for the success case.",  {
+            app.askForUpdatePermission("test_intent", gson.fromJson("""[
+                {
+                    name: "intent_name",
+                    textValue: "intent_value"
+                }
+            ]""", arrayOf<Arguments>().javaClass).toMutableList())
+            // Validating the response object
+            val expectedResponse = responseFromJson("""{
+                "speech": "PLACEHOLDER_FOR_PERMISSION",
+                "data": {
+                "google": {
+                "userStorage": "{\"data\":{}}",
+                "expectUserResponse": true,
+                "isSsml": false,
+                "noInputPrompts": [],
+                "systemIntent": {
+                "intent": "actions.intent.PERMISSION",
+                "data": {
+                "@type": "type.googleapis.com/google.actions.v2.PermissionValueSpec",
+                "permissions": ["UPDATE"],
+                "updatePermissionValueSpec": {
+                "intent": "test_intent",
+                "arguments": [
+                {
+                    "name": "intent_name",
+                    "textValue": "intent_value"
+                }
+                ]
+            }
+            }
+            }
+            }
+            },
+                "contextOut": [
+                {
+                    "name": "_actions_on_google_",
+                    "lifespan": 100,
+                    "parameters": {}
+                }
+                ]
+            }""")
+            expect(mockResponse.body).to.equal(expectedResponse)
+        })
+
+        // Success case test, when the API returns a valid 200 response
+        // with the response object without arguments
+        it("Should return the valid JSON in the response object " +
+                "without arguments for the success case.",  {
+            app.askForUpdatePermission("test_intent")
+            // Validating the response object
+            val expectedResponse = responseFromJson("""{
+                "speech": "PLACEHOLDER_FOR_PERMISSION",
+                "data": {
+                "google": {
+                "userStorage": "{\"data\":{}}",
+                "expectUserResponse": true,
+                "isSsml": false,
+                "noInputPrompts": [],
+                "systemIntent": {
+                "intent": "actions.intent.PERMISSION",
+                "data": {
+                "@type": "type.googleapis.com/google.actions.v2.PermissionValueSpec",
+                "permissions": ["UPDATE"],
+                "updatePermissionValueSpec": {
+                "intent": "test_intent"
+            }
+            }
+            }
+            }
+            },
+                "contextOut": [
+                {
+                    "name": "_actions_on_google_",
+                    "lifespan": 100,
+                    "parameters": {}
+                }
+                ]
+            }""")
+            expect(mockResponse.body).to.equal(expectedResponse)
+        })
+
+        // Failure case test, when an invalid intent name is given
+        it("Should return null",  {
+            expect(app.askForUpdatePermission("", gson.fromJson("""[
+                {
+                    name: "intent_name",
+                    textValue: "intent_value"
+                }
+            ]""", arrayOf<Arguments>().javaClass).toMutableList())).to.be.equal(null)
+            expect(mockResponse.statusCode).to.equal(400)
+        })
+    })
+
+
     /**
      * Tests parsing parameters with Gson and retrieving parameter values
      * NOTE: This are an addition to the official test suite.  These are needed due to the dynamic nature of
@@ -2201,7 +2735,7 @@ object ActionsTest : Spek({
                 "Say any number", "Pick a number", "What is the number?")
 
 
-        val expectedResponse = """{"speech":"Welcome to action snippets! Say a number.","displayText":"","secondDisplayText":"","data":{"google":{"isSsml":false,"noInputPrompts":[{"ssml":null,"textToSpeech":"Say any number"},{"ssml":null,"textToSpeech":"Pick a number"},{"ssml":null,"textToSpeech":"What is the number?"}],"permissionsRequest":null,"systemIntent":null,"expectUserResponse":true,"possibleIntents":null,"richResponse":null},"customData":{"testString":"test"}},"contextOut":[{"name":"_actions_on_google_","parameters":{},"lifespan":100}],"source":""}"""
+        val expectedResponse = """{"speech":"Welcome to action snippets! Say a number.","displayText":"","secondDisplayText":"","data":{"customData":{"testString":"test"}},"contextOut":[{"name":"_actions_on_google_","parameters":{},"lifespan":100}],"source":""}"""
         //json must remain unformatted to match gson output.
         // data class equals() will not match in this case because Data overrides MutableMap
         expect(gson.toJson(mockResponse.body)).to.equal(expectedResponse)

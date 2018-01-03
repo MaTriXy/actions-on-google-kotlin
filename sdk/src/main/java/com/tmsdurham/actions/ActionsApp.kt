@@ -2,6 +2,7 @@ package com.tmsdurham.actions
 
 import com.tmsdurham.dialogflow.google.GoogleData
 import com.tmsdurham.actions.actions.*
+import com.tmsdurham.dialogflow.DialogflowResponse
 
 
 // Constants
@@ -969,6 +970,15 @@ class ActionsSdkApp : AssistantApp<ActionRequest, ActionResponse> {
                     "data" to data)
         }
         return buildAskHelper(inputPrompt, mutableListOf(expectedIntent), outDialogState)
+    }
+
+
+    override fun fulfillSystemIntent(intent: String, specType: String, intentSpec: NewSurfaceValueSpec, promptPlaceholder: String?, dialogState: MutableMap<String, Any?>?): ResponseWrapper<DialogflowResponse>? {
+        TODO("not implemented for Actions SDK - please make an issue on actions-on-google-kotlin if this is needed")
+    }
+
+    override fun fulfillRegisterUpdateIntent(intent: String, specType: String, intentSpec: RegisterUpdateValueSpec, promptPlaceholder: String?, dialogState: MutableMap<String, Any?>?): ResponseWrapper<DialogflowResponse>? {
+        TODO("not implemented for Actions SDK - please make an issue on actions-on-google-kotlin if this is needed")
     }
 
     /**
